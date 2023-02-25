@@ -28,6 +28,6 @@ end
 
 function hide_comm(f,ranges)
     ie = f(ranges[end])
-    oe = Tuple(f(r) for r in ranges[2:end])
+    oe = Tuple(f(r) for r in ranges[1:end-1])
     return ie, oe
 end
