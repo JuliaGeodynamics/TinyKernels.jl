@@ -66,8 +66,8 @@ end
     flux! = Kernel(kernel_flux!,device)
     mass! = Kernel(kernel_mass!,device)
 
-    boudary_width = (8,4,1)
-    ranges = split_ndrange(axes(H),boudary_width)
+    boundary_width = (8,4,1)
+    ranges = split_ndrange(axes(H),boundary_width)
 
     for it in 1:maximum(sz)
         println(" step $it")
