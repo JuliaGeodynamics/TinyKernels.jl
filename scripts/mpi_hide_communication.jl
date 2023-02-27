@@ -50,7 +50,17 @@ end
 @views inner_y(A) = A[:,2:end-1,:]
 @views inner_z(A) = A[:,:,2:end-1]
 
-@views function main(;device,sz)
+@views function main(;device,sz,dims)
+    if !MPI.Initialized()
+        MPI.Init()
+    end
+
+    comm_cart = MPI.Cart_create(MPI.COMM_WORLD,dims)
+    me = MPI.Comm_rank(comm_cart)
+    neighbors = ntuple(length(dims)) do idim
+        MPI.Cart_shift(comm_cart,idim-1,1)
+    end
+    overlap = 2
     nx,ny,nz = sz
     dx,dy,dz = 1.0./sz
     χ        = 1.0
@@ -67,7 +77,7 @@ end
     mass! = Kernel(kernel_mass!,device)
 
     boundary_width = (8,4,1)
-    ranges = split_ndrange(axes(H),boundary_width)
+    ranges = __split_ndrange(axes(H),boundary_width)
 
     for it in 1:maximum(sz)
         println(" step $it")
@@ -77,15 +87,20 @@ end
                   inner_z(qz),H,χ,dx,dy,dz;ndrange)
         end
         wait.(oe)
+        exchange_halo!(qx,qy,qz;gridsize=sz,neighbors,overlap,comm=comm_cart)
         wait(ie)
         wait(mass!(H,qx,qy,qz,dt,dx,dy,dz;ndrange=axes(H)))
     end
+    
+    heatmap(Array(H[:,:,round(Int,nz/2)])';aspect_ratio=1,xlims=(1,nx),ylims=(1,ny))
+    png("$me.png")
 
-    display(heatmap(Array(H[:,:,round(Int,nz/2)])';aspect_ratio=1,xlims=(1,nx),ylims=(1,ny)))
-
+    if MPI.Initialized()
+        MPI.Finalize()
+    end
     return
 end
 
 @static if CUDA.functional()
-    main(;device=CUDADevice(),sz=(127,127,127))
+    main(;device=CUDADevice(),sz=(127,127,127),dims=(2,2,2))
 end
